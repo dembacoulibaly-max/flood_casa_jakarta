@@ -52,6 +52,68 @@ Export.image.toAsset({
 });
 
 
+//  Colab
+
+!pip install earthengine-api geemap
+
+import ee
+import geemap
+ee.Authenticate()
+ee.Initialize(project="")
+
+
+# Charger les points
+flooded_points = variables_masked.addBands(flooded_masked).stratifiedSample(
+    numPoints=1000,
+    classBand=None,
+    region=forme,
+    scale=10,
+    geometries=True,
+    seed=1
+).map(lambda f: f.set("label", 1))
+
+non_flooded_points = variables_masked.addBands(non_flooded_masked).stratifiedSample(
+    numPoints=1000,
+    classBand=None,
+    region=forme,
+    scale=10,
+    geometries=True,
+    seed=2
+).map(lambda f: f.set("label", 0))
+points = flooded_points.merge(non_flooded_points)
+total_size = points.size().getInfo()
+print("Nombre de points dans trainData :", total_size)
+# Filtrer les points ayant une valeur null pour 'label'
+null_flooded_points = flooded_points.filter(ee.Filter.notNull(['label']).Not())
+null_non_flooded_points = non_flooded_points.filter(ee.Filter.notNull(['label']).Not())
+
+# Obtenir le nombre de points nulls
+null_flooded_size =flooded_points.size().getInfo()
+null_non_flooded_size =non_flooded_points.size().getInfo()
+
+non_flooded_points.size().getInfo()
+
+print("Nombre de points nulls dans flooded_points :", null_flooded_size)
+print("Nombre de points nulls dans non_flooded_points :", null_non_flooded_size)
+print("Nombre points floodés initiaux :", flooded_points.size().getInfo())
+print("Nombre points non floodés initiaux :", non_flooded_points.size().getInfo())
+
+# Extraire les valeurs des pixels aux emplacements des points
+training = variables.sampleRegions(collection=points, properties=['label'], scale=30, geometries=True).filter(ee.Filter.notNull(['label']).And(ee.Filter.notNull(variables.bandNames())))
+# Supprimer les points avec des valeurs nulles pour 'label' ou les variables
+training = training.filter(ee.Filter.notNull(['label']).And(ee.Filter.notNull(variables.bandNames())))
+#filtered_size = training.size().getInfo()
+#print("Nombre de points après suppression des valeurs nulles :", filtered_size)
+
+# Séparer les données en train et test
+# Ajouter une colonne aléatoire pour mélanger les points
+flooded_points_random = flooded_points.randomColumn("random", seed=42)
+non_flooded_points_random = non_flooded_points.randomColumn("random", seed=42)
+
+
+selected_flooded = flooded_points_random.sort('random').limit(337)
+selected_non_flooded = non_flooded_points_random.sort('random').limit(216)
+merge_data = selected_flooded.merge(selected_non_flooded)
 
 
 
